@@ -15,6 +15,8 @@ pub struct Opts {
 pub enum SubCommand {
     #[command(about = "Show CSV, or Convert CSV to other formats")]
     Csv(CsvOpts),
+    #[command(name = "genpass", about = "Generate a random password")]
+    GenPass(GenPassOpts),
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -80,4 +82,18 @@ impl Display for OutputFormat {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", Into::<&str>::into(*self))
     }
+}
+
+#[derive(Debug, Parser)]
+pub struct GenPassOpts {
+    #[arg(short, long, default_value_t = 16)]
+    pub length: u8,
+    #[arg(long, default_value_t = true)]
+    pub uppercase: bool,
+    #[arg(long, default_value_t = true)]
+    pub lowercase: bool,
+    #[arg(long, default_value_t = true)]
+    pub numbers: bool,
+    #[arg(long, default_value_t = true)]
+    pub symbol: bool,
 }
