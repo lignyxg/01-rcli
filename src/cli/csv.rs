@@ -1,23 +1,8 @@
+use super::verify_input_file;
 use anyhow::anyhow;
 use clap::Parser;
 use std::fmt::{Display, Formatter};
-use std::path::Path;
 use std::str::FromStr;
-
-#[derive(Debug, Parser)]
-#[command(name = "rcli", version, author, about, long_about = None)]
-pub struct Opts {
-    #[command(subcommand)]
-    pub cmd: SubCommand,
-}
-
-#[derive(Debug, Parser)]
-pub enum SubCommand {
-    #[command(about = "Show CSV, or Convert CSV to other formats")]
-    Csv(CsvOpts),
-    #[command(name = "genpass", about = "Generate a random password")]
-    GenPass(GenPassOpts),
-}
 
 #[derive(Debug, Copy, Clone)]
 pub enum OutputFormat {
@@ -43,14 +28,6 @@ pub struct CsvOpts {
     pub delimiter: char,
     #[arg(long, default_value_t = true)]
     pub header: bool,
-}
-
-fn verify_input_file(file_name: &str) -> Result<String, &'static str> {
-    if Path::new(file_name).exists() {
-        Ok(file_name.into())
-    } else {
-        Err("File does not exists")
-    }
 }
 
 fn parse_format(format: &str) -> Result<OutputFormat, anyhow::Error> {
@@ -82,18 +59,4 @@ impl Display for OutputFormat {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", Into::<&str>::into(*self))
     }
-}
-
-#[derive(Debug, Parser)]
-pub struct GenPassOpts {
-    #[arg(short, long, default_value_t = 16)]
-    pub length: u8,
-    #[arg(long, default_value_t = true)]
-    pub uppercase: bool,
-    #[arg(long, default_value_t = true)]
-    pub lowercase: bool,
-    #[arg(long, default_value_t = true)]
-    pub numbers: bool,
-    #[arg(long, default_value_t = true)]
-    pub symbol: bool,
 }
