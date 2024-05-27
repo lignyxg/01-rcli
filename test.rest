@@ -1,0 +1,8 @@
+### Test static files
+
+GET http://localhost:8080/fixtures/blake3.txt
+
+### Test static files with tower-http
+
+GET http://localhost:8080/tower/fixtures/b64.txt
+Range: bytes=0-10

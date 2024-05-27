@@ -1,4 +1,4 @@
-use super::verify_input_file;
+use super::verify_file;
 use anyhow::anyhow;
 use clap::Parser;
 use std::fmt::{Display, Formatter};
@@ -12,7 +12,7 @@ pub enum OutputFormat {
 
 #[derive(Debug, Parser)]
 pub struct CsvOpts {
-    #[arg(short, long, value_parser = verify_input_file)]
+    #[arg(short, long, value_parser = verify_file)]
     pub input: String,
     /*
     default_value 表示这个值需要转换,
