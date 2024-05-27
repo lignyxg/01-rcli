@@ -12,6 +12,7 @@ pub use self::{
     http::HttpSubCommand,
     text::{TextSignFormat, TextSubCommand},
 };
+use crate::CmdExecutor;
 use clap::Parser;
 use std::path::{Path, PathBuf};
 
@@ -30,9 +31,9 @@ pub enum SubCommand {
     GenPass(GenPassOpts),
     #[command(subcommand, about = "Base64 encode/decode")]
     Base64(Base64SubCommand),
-    #[command(subcommand)]
+    #[command(subcommand, about = "Text sign/verify")]
     Text(TextSubCommand),
-    #[command(subcommand)]
+    #[command(subcommand, about = "HTTP server")]
     Http(HttpSubCommand),
 }
 
@@ -50,6 +51,18 @@ fn verify_path(path: &str) -> Result<PathBuf, &'static str> {
         Ok(path.into())
     } else {
         Err("Path does not exist or is not a directory")
+    }
+}
+
+impl CmdExecutor for SubCommand {
+    async fn execute(self) -> anyhow::Result<()> {
+        match self {
+            SubCommand::Csv(opts) => opts.execute().await,
+            SubCommand::GenPass(opts) => opts.execute().await,
+            SubCommand::Base64(cmd) => cmd.execute().await,
+            SubCommand::Text(cmd) => cmd.execute().await,
+            SubCommand::Http(cmd) => cmd.execute().await,
+        }
     }
 }
 

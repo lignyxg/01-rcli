@@ -1,4 +1,5 @@
 use crate::cli::verify_path;
+use crate::{process_http_serve, CmdExecutor};
 use clap::Parser;
 use std::path::PathBuf;
 
@@ -14,4 +15,18 @@ pub struct HttpServeOpts {
     pub dir: PathBuf,
     #[arg(short, long, default_value_t = 8080)]
     pub port: u16,
+}
+
+impl CmdExecutor for HttpSubCommand {
+    async fn execute(self) -> anyhow::Result<()> {
+        match self {
+            HttpSubCommand::Serve(opts) => opts.execute().await,
+        }
+    }
+}
+
+impl CmdExecutor for HttpServeOpts {
+    async fn execute(self) -> anyhow::Result<()> {
+        process_http_serve(self.dir, self.port).await
+    }
 }
