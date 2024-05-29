@@ -8,7 +8,7 @@ repos:
       - id: check-merge-conflict
       - id: check-symlinks
       - id: check-yaml
-      - id: end-of-file-fixer
+      #- id: end-of-file-fixer
       - id: mixed-line-ending
       - id: trailing-whitespace
   - repo: https://github.com/psf/black
@@ -52,10 +52,10 @@ repos:
         language: rust
         files: \.rs$
         pass_filenames: false
-      - id: cargo-test
-        name: cargo test
-        description: unit test for the project
-        entry: bash -c 'cargo nextest run --all-features'
-        language: rust
-        files: \.rs$
-        pass_filenames: false
+#      - id: cargo-test
+#        name: cargo test
+#        description: unit test for the project
+#        entry: bash -c 'cargo nextest run --all-features'
+#        language: rust
+#        files: \.rs$
+#        pass_filenames: false

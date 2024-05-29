@@ -45,7 +45,8 @@ mod tests {
 
     #[test]
     fn test_jwt_round_trip() -> anyhow::Result<()> {
-        let (sub, aud, exp) = ("acme".to_string(), "device1".to_string(), 1716954343);
+        // may fail due to fixed timestamp in the future
+        let (sub, aud, exp) = ("acme".to_string(), "device1".to_string(), 1719954343);
         let token = process_jwt_sign(sub, aud.clone(), exp)?;
         assert!(process_jwt_verify(token, aud).is_ok());
         Ok(())

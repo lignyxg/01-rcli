@@ -1,7 +1,10 @@
-use crate::{get_reader, process_genpass, TextSignFormat};
-use anyhow::Result;
+use crate::{get_reader, process_genpass, TextEncryptFormat, TextSignFormat};
+use anyhow::{anyhow, Result};
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine;
+use chacha20poly1305::aead::generic_array::GenericArray;
+use chacha20poly1305::aead::Aead;
+use chacha20poly1305::{AeadCore, KeyInit, XChaCha20Poly1305};
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
 use rand::rngs::OsRng;
 use std::fs;
@@ -28,6 +31,14 @@ pub trait KeyLoader {
 
 pub trait KeyGenerator {
     fn generate() -> Result<Vec<Vec<u8>>>;
+}
+
+pub trait TextEncryptor {
+    fn encrypt(&self, reader: impl Read) -> Result<Vec<u8>>;
+}
+
+pub trait TextDecryptor {
+    fn decrypt(&self, reader: impl Read) -> Result<Vec<u8>>;
 }
 
 pub struct Blake3 {
@@ -208,6 +219,113 @@ pub fn process_text_generate(format: TextSignFormat) -> Result<Vec<Vec<u8>>> {
     }
 }
 
+pub struct XChaCha20Poly1305Key {
+    key: chacha20poly1305::Key,
+}
+
+impl XChaCha20Poly1305Key {
+    pub fn new(key: chacha20poly1305::Key) -> Self {
+        Self { key }
+    }
+    pub fn try_new(key: &[u8]) -> Result<Self> {
+        let ga = chacha20poly1305::Key::from_slice(key);
+        let k = Self::new(*ga as chacha20poly1305::Key);
+        Ok(k)
+    }
+}
+
+impl KeyGenerator for XChaCha20Poly1305Key {
+    fn generate() -> Result<Vec<Vec<u8>>> {
+        let key = XChaCha20Poly1305::generate_key(&mut OsRng);
+        let key = key.to_vec();
+        Ok(vec![key])
+    }
+}
+
+impl KeyLoader for XChaCha20Poly1305Key {
+    fn load(path: impl AsRef<Path>) -> Result<Self>
+    where
+        Self: Sized,
+    {
+        let key = if path.as_ref().is_file() {
+            fs::read(path)?
+        } else {
+            let s = path.as_ref().to_str().unwrap();
+            s.as_bytes().to_vec()
+        };
+        let key = URL_SAFE_NO_PAD.decode(key)?;
+        Self::try_new(&key)
+    }
+}
+
+impl TextEncryptor for XChaCha20Poly1305Key {
+    fn encrypt(&self, mut reader: impl Read) -> Result<Vec<u8>> {
+        let cipher = XChaCha20Poly1305::new(&self.key);
+        let nonce = XChaCha20Poly1305::generate_nonce(&mut OsRng);
+
+        let mut input = Vec::new();
+        reader.read_to_end(&mut input)?;
+        let ciphertext = cipher
+            .encrypt(&nonce, input.as_slice())
+            .map_err(|e| anyhow!(e.to_string()))?;
+        // ChaCha20Poly1305 nonce has 192bit fixed size
+        // concat nonce with ciphertext, so that it can be
+        // decrypted without explicitly input the nonce
+        Ok([nonce.to_vec(), ciphertext].concat())
+    }
+}
+
+pub fn process_text_encrypt(
+    input: &str,
+    key: &str,
+    format: TextEncryptFormat,
+) -> Result<Vec<Vec<u8>>> {
+    let mut res: Vec<Vec<u8>> = Vec::new();
+    let reader = get_reader(input)?;
+    let encrypted = match format {
+        TextEncryptFormat::XChaCha20Poly1305 => {
+            let encryptor = if key != "-" && !key.is_empty() {
+                XChaCha20Poly1305Key::load(key)?
+            } else {
+                println!("Generate a new key for encrypting");
+                let gen = XChaCha20Poly1305Key::generate()?;
+                XChaCha20Poly1305Key::try_new(gen[0].as_slice())?
+            };
+            res.push(encryptor.key.to_vec());
+            encryptor.encrypt(reader)?
+        }
+    };
+    res.push(encrypted);
+    Ok(res)
+}
+
+impl TextDecryptor for XChaCha20Poly1305Key {
+    fn decrypt(&self, mut reader: impl Read) -> Result<Vec<u8>> {
+        let mut input = Vec::new();
+        reader.read_to_end(&mut input)?;
+        let input = URL_SAFE_NO_PAD.decode(input)?;
+        let (nonce, ciphertext) = input.split_at(24);
+        let cipher = XChaCha20Poly1305::new(&self.key);
+        let n = GenericArray::from_slice(nonce);
+        let decrypted = cipher
+            .decrypt(n, ciphertext)
+            .map_err(|e| anyhow!(e.to_string()))?;
+        Ok(decrypted)
+    }
+}
+
+pub fn process_text_decrypt(input: &str, key: &str, format: TextEncryptFormat) -> Result<Vec<u8>> {
+    let reader = get_reader(input)?;
+    let decrypted = match format {
+        TextEncryptFormat::XChaCha20Poly1305 => {
+            let decryptor = XChaCha20Poly1305Key::load(key)?;
+            decryptor.decrypt(reader)?
+        }
+    };
+
+    Ok(decrypted)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -229,6 +347,34 @@ mod tests {
         let data = b"hello!";
         let sig = sk.sign(&mut &data[..])?;
         assert!(pk.verify(&data[..], &sig)?);
+        Ok(())
+    }
+
+    #[test]
+    fn test_load_xchacha20poly1305_key() -> Result<()> {
+        let _ = XChaCha20Poly1305Key::load("fixtures/xchacha20poly1305_k.txt")?;
+        let _ = XChaCha20Poly1305Key::load("7o_szUy1jWr7WID0pXelySSbOmGl5OxqqMXrMRYbk4U")?;
+        Ok(())
+    }
+    #[test]
+    fn test_xchacha20_encrypt_decrypt() -> Result<()> {
+        let encrypted = process_text_encrypt(
+            "fixtures/blake3.txt",
+            "-",
+            TextEncryptFormat::XChaCha20Poly1305,
+        )?;
+        let encrypted: Vec<_> = encrypted
+            .iter()
+            .map(|v| URL_SAFE_NO_PAD.encode(v))
+            .collect();
+        fs::write("fixtures/xchacha20poly1305_t.txt", &encrypted[1])?;
+        let t = process_text_decrypt(
+            "fixtures/xchacha20poly1305_t.txt",
+            &encrypted[0],
+            TextEncryptFormat::XChaCha20Poly1305,
+        )?;
+        let orign = fs::read("fixtures/blake3.txt")?;
+        assert_eq!(t, orign);
         Ok(())
     }
 }

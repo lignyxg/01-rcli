@@ -46,6 +46,9 @@ fn verify_file(file_name: &str) -> Result<String, &'static str> {
 }
 
 fn verify_path(path: &str) -> Result<PathBuf, &'static str> {
+    if path == "-" {
+        return Ok(path.into());
+    }
     let p = Path::new(path);
     if p.exists() && p.is_dir() {
         Ok(path.into())

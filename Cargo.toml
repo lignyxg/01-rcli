@@ -29,3 +29,4 @@ enum_dispatch = "0.3.13"
 time = { version = "0.3.36", features = ["local-offset", "serde", "parsing", "formatting", "macros"] }
 regex = "1.10.4"
 jsonwebtoken = "9.3.0"
+chacha20poly1305 = "0.10.1"
