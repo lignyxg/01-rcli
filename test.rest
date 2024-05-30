@@ -6,3 +6,7 @@ GET http://localhost:8080/fixtures/blake3.txt
 
 GET http://localhost:8080/tower/fixtures/b64.txt
 Range: bytes=0-10
+
+### Test directory index
+
+GET http://localhost:8080/fixtures/
